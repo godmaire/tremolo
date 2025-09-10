@@ -1,9 +1,28 @@
-use axum::{Router, routing::get};
+use clap::{Parser, Subcommand};
+
+mod agent;
+mod server;
+
+#[derive(Debug, Parser)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Start the worker agent to connect to the Tremolo orchestrator server
+    Agent(agent::Parameters),
+    /// Start the Tremolo orchestrator server
+    Server(server::Parameters),
+}
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route("/", get(|| async { "Hello, World!" }));
+    let args = Cli::parse();
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    match args.command {
+        Command::Agent(params) => agent::start(params),
+        Command::Server(params) => server::start(params).await,
+    }
 }
