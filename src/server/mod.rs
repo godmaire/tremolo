@@ -1,8 +1,11 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 
 use axum::{Router, routing::get};
 use clap::Args;
-use sqlx::{Pool, Sqlite, SqlitePool};
+use sqlx::{
+    Pool, Sqlite,
+    sqlite::{SqliteConnectOptions, SqliteJournalMode},
+};
 use tracing::{Level, info};
 
 #[derive(Debug, Args)]
@@ -11,7 +14,7 @@ pub struct Parameters {
     #[arg(long, default_value = "0.0.0.0:8000", env = "TREMOLO_LISTEN_ADDR")]
     listen: SocketAddr,
     /// Log level for the application
-    #[arg(long, default_value_t = Level::INFO)]
+    #[arg(long, default_value_t = Level::INFO, env = "TREMOLO_LOG_LEVEL")]
     log_level: Level,
     /// Path to the Sqlite database
     #[arg(
@@ -35,7 +38,17 @@ pub async fn start(params: Parameters) {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     // Setup database connection
-    let db = SqlitePool::connect(&params.database_url).await.unwrap();
+    let opts = SqliteConnectOptions::from_str(&params.database_url)
+        .expect("valid sqlite url")
+        .journal_mode(SqliteJournalMode::Wal)
+        .create_if_missing(true);
+    let db = sqlx::SqlitePool::connect_with(opts)
+        .await
+        .expect("failed to open database");
+    sqlx::migrate!("src/server/migrations")
+        .run(&db)
+        .await
+        .expect("failed to run migration");
 
     // Initialize Router
     let state = SharedState { db };

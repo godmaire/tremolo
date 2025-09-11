@@ -25,7 +25,7 @@
         { pkgs, ... }:
         pkgs.mkShell {
           PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
-          DATABASE_URL = "sqlite://dev.db";
+          TREMOLO_DATABASE_URL = "sqlite://dev.db";
 
           packages = with pkgs; [
             clang
