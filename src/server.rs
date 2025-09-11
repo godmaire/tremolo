@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use axum::{Router, routing::get};
 use clap::Args;
+use sqlx::{Pool, Sqlite, SqlitePool};
 use tracing::{Level, info};
 
 #[derive(Debug, Args)]
@@ -12,6 +13,18 @@ pub struct Parameters {
     /// Log level for the application
     #[arg(long, default_value_t = Level::INFO)]
     log_level: Level,
+    /// Path to the Sqlite database
+    #[arg(
+        long,
+        default_value = "/opt/tremolo/tremolo.db",
+        env = "TREMOLO_DATABASE_URL"
+    )]
+    database_url: String,
+}
+
+#[derive(Clone)]
+struct SharedState {
+    db: Pool<Sqlite>,
 }
 
 pub async fn start(params: Parameters) {
@@ -21,8 +34,14 @@ pub async fn start(params: Parameters) {
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
+    // Setup database connection
+    let db = SqlitePool::connect(&params.database_url).await.unwrap();
+
     // Initialize Router
-    let app = Router::new().route("/healthcheck", get(|| async { "OK" }));
+    let state = SharedState { db };
+    let app = Router::new()
+        .route("/healthcheck", get(|| async { "OK" }))
+        .with_state(state);
 
     // Start the application
     info!(address = ?params.listen, "Starting server");
