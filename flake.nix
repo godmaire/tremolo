@@ -33,7 +33,7 @@
             git
             openssl
             pkg-config
-            sqlite
+            sqlite-interactive
 
             sqlx-cli
           ];
