@@ -1,3 +1,5 @@
+use std::process::ExitCode;
+
 use clap::{Parser, Subcommand};
 
 mod agent;
@@ -18,7 +20,7 @@ enum Command {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     let args = Cli::parse();
 
     match args.command {

@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, str::FromStr, sync::Arc};
+use std::{net::SocketAddr, process::ExitCode, str::FromStr, sync::Arc};
 
 use axum::{
     Router,
@@ -9,7 +9,7 @@ use sqlx::{
     Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqliteJournalMode},
 };
-use tracing::{Level, info};
+use tracing::{Level, error, info};
 
 mod agents;
 mod app;
@@ -39,7 +39,7 @@ struct SharedState {
     db: Pool<Sqlite>,
 }
 
-pub async fn start(params: Parameters) {
+pub async fn start(params: Parameters) -> ExitCode {
     // Setup tracing subscriber for logging
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
         .with_line_number(true)
@@ -56,10 +56,14 @@ pub async fn start(params: Parameters) {
     let db = sqlx::SqlitePool::connect_with(opts)
         .await
         .expect("failed to open database");
-    sqlx::migrate!("src/server/migrations")
-        .run(&db)
-        .await
-        .expect("failed to run migration");
+
+    info!("Running database migrations...");
+    let res = sqlx::migrate!("src/server/migrations").run(&db).await;
+    if let Err(err) = res {
+        error!(error = ?err, "Failed to run database migrations.");
+        return ExitCode::FAILURE;
+    }
+    info!("Successfully  ran database migrations.");
 
     // Initialize Router
     let state = Arc::new(SharedState { db });
@@ -84,7 +88,17 @@ pub async fn start(params: Parameters) {
 
     // Start the application
     info!(address = ?params.listen, "Starting server");
-    let listener = tokio::net::TcpListener::bind(params.listen).await.unwrap();
+    let listener = match tokio::net::TcpListener::bind(params.listen).await {
+        Ok(listener) => listener,
+        Err(err) => {
+            error!(error = ?err, "Failed to bind listener.");
+            return ExitCode::FAILURE;
+        }
+    };
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .await
+        .expect("this will never error");
+
+    ExitCode::SUCCESS
 }
