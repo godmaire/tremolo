@@ -33,6 +33,8 @@ struct SharedState {
 pub async fn start(params: Parameters) {
     // Setup tracing subscriber for logging
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        .with_line_number(true)
+        .with_file(true)
         .with_max_level(params.log_level)
         .finish();
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
