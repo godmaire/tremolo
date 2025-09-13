@@ -1,12 +1,19 @@
-use std::{net::SocketAddr, str::FromStr};
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{delete, get, post, put},
+};
 use clap::Args;
 use sqlx::{
     Pool, Sqlite,
     sqlite::{SqliteConnectOptions, SqliteJournalMode},
 };
 use tracing::{Level, info};
+
+mod app;
+
+use app::handlers::*;
 
 #[derive(Debug, Args)]
 pub struct Parameters {
@@ -53,9 +60,14 @@ pub async fn start(params: Parameters) {
         .expect("failed to run migration");
 
     // Initialize Router
-    let state = SharedState { db };
+    let state = Arc::new(SharedState { db });
     let app = Router::new()
         .route("/healthcheck", get(|| async { "OK" }))
+        .route("/apps", get(list_apps))
+        .route("/apps/create", post(create_app))
+        .route("/apps/{id}", get(get_app))
+        .route("/apps/{id}", put(update_app))
+        .route("/apps/{id}", delete(delete_app))
         .with_state(state);
 
     // Start the application
