@@ -6,6 +6,7 @@ use axum::{
     http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::server::SharedState;
 
@@ -19,13 +20,18 @@ pub struct ListAppsElement {
 
 pub type ListAppsResponse = Vec<ListAppsElement>;
 
-pub(crate) async fn list_apps(State(state): State<Arc<SharedState>>) -> Json<ListAppsResponse> {
+pub(crate) async fn list_apps(
+    State(state): State<Arc<SharedState>>,
+) -> Result<Json<ListAppsResponse>, StatusCode> {
     let apps = sqlx::query_as!(ListAppsElement, "SELECT id, name, description FROM apps")
         .fetch_all(&state.db)
         .await
-        .unwrap();
+        .map_err(|err| {
+            error!(error = ?err, "failed to get apps from database");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
-    Json(apps)
+    Ok(Json(apps))
 }
 
 /// ==================== POST /apps ====================
@@ -43,7 +49,7 @@ pub struct CreateAppResponse {
 pub(crate) async fn create_app(
     State(state): State<Arc<SharedState>>,
     Json(body): Json<CreateAppRequest>,
-) -> Json<CreateAppResponse> {
+) -> Result<Json<CreateAppResponse>, StatusCode> {
     let res = sqlx::query!(
         "INSERT INTO apps (name, description) VALUES (?, ?) RETURNING id",
         body.name,
@@ -51,9 +57,16 @@ pub(crate) async fn create_app(
     )
     .fetch_one(&state.db)
     .await
-    .unwrap();
+    .map_err(|err| match err {
+        // Unique violations are client errors,
+        sqlx::Error::Database(err) if err.is_unique_violation() => StatusCode::CONFLICT,
+        err => {
+            error!(error = ?err, "failed to add app to database");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
 
-    Json(CreateAppResponse { id: res.id })
+    Ok(Json(CreateAppResponse { id: res.id }))
 }
 
 /// ==================== GET /apps/{id} ====================
@@ -75,7 +88,10 @@ pub(crate) async fn get_app(
     )
     .fetch_optional(&state.db)
     .await
-    .unwrap();
+    .map_err(|err| {
+        error!(error = ?err, "failed to get app from database");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     match app {
         Some(app) => Ok(Json(app)),
@@ -101,7 +117,7 @@ pub(crate) async fn update_app(
     State(state): State<Arc<SharedState>>,
     Path(id): Path<i64>,
     Json(body): Json<PutAppRequest>,
-) -> Json<PutAppResponse> {
+) -> Result<Json<PutAppResponse>, StatusCode> {
     let app = sqlx::query_as!(
         PutAppResponse,
         "UPDATE apps SET name = $2, description = $3 WHERE id = $1 RETURNING id, name, description",
@@ -111,9 +127,16 @@ pub(crate) async fn update_app(
     )
     .fetch_one(&state.db)
     .await
-    .unwrap();
+    .map_err(|err| match err {
+        sqlx::Error::RowNotFound => StatusCode::NOT_FOUND,
+        sqlx::Error::Database(err) if err.is_unique_violation() => StatusCode::CONFLICT,
+        err => {
+            error!(error = ?err, "failed to get app from database");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
 
-    Json(app)
+    Ok(Json(app))
 }
 
 /// ==================== DELETE /apps/{id} ====================
@@ -121,10 +144,15 @@ pub(crate) async fn delete_app(
     State(state): State<Arc<SharedState>>,
     Path(id): Path<i64>,
 ) -> StatusCode {
-    sqlx::query!("DELETE FROM apps WHERE id = ?", id)
+    let res = sqlx::query!("DELETE FROM apps WHERE id = ?", id)
         .execute(&state.db)
-        .await
-        .unwrap();
+        .await;
 
-    StatusCode::OK
+    match res {
+        Ok(_) => StatusCode::OK,
+        Err(err) => {
+            error!(error = ?err, "failed to delete app from database");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
 }
