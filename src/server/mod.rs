@@ -11,8 +11,10 @@ use sqlx::{
 };
 use tracing::{Level, info};
 
+mod agents;
 mod app;
 
+use agents::handlers::*;
 use app::handlers::*;
 
 #[derive(Debug, Args)]
@@ -62,12 +64,22 @@ pub async fn start(params: Parameters) {
     // Initialize Router
     let state = Arc::new(SharedState { db });
     let app = Router::new()
+        .nest(
+            "/agents",
+            Router::new()
+                .route("/", get(list_agents))
+                .route("/{id}", delete(delete_agent)),
+        )
+        .nest(
+            "/apps",
+            Router::new()
+                .route("/", get(list_apps))
+                .route("/create", post(create_app))
+                .route("/{id}", get(get_app))
+                .route("/{id}", put(update_app))
+                .route("/{id}", delete(delete_app)),
+        )
         .route("/healthcheck", get(|| async { "OK" }))
-        .route("/apps", get(list_apps))
-        .route("/apps/create", post(create_app))
-        .route("/apps/{id}", get(get_app))
-        .route("/apps/{id}", put(update_app))
-        .route("/apps/{id}", delete(delete_app))
         .with_state(state);
 
     // Start the application

@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use crate::server::SharedState;
 
 /// ==================== GET /apps ====================
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ListAppsElement {
     pub id: i64,
@@ -30,7 +29,6 @@ pub(crate) async fn list_apps(State(state): State<Arc<SharedState>>) -> Json<Lis
 }
 
 /// ==================== POST /apps ====================
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateAppRequest {
     pub name: String,
@@ -59,7 +57,6 @@ pub(crate) async fn create_app(
 }
 
 /// ==================== GET /apps/{id} ====================
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetAppResponse {
     pub id: i64,
@@ -87,7 +84,6 @@ pub(crate) async fn get_app(
 }
 
 /// ==================== PUT /apps/{id} ====================
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PutAppRequest {
     pub name: String,
@@ -121,7 +117,6 @@ pub(crate) async fn update_app(
 }
 
 /// ==================== DELETE /apps/{id} ====================
-
 pub(crate) async fn delete_app(
     State(state): State<Arc<SharedState>>,
     Path(id): Path<i64>,
