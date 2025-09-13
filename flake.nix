@@ -35,6 +35,7 @@
             pkg-config
             sqlite-interactive
 
+            just
             sqlx-cli
           ];
         }
