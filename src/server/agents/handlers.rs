@@ -7,6 +7,7 @@ use axum::{
 };
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::server::SharedState;
 
@@ -21,16 +22,21 @@ pub struct ListAgentsElement {
 
 type ListAgentsResponse = Vec<ListAgentsElement>;
 
-pub(crate) async fn list_agents(State(state): State<Arc<SharedState>>) -> Json<ListAgentsResponse> {
+pub(crate) async fn list_agents(
+    State(state): State<Arc<SharedState>>,
+) -> Result<Json<ListAgentsResponse>, StatusCode> {
     let agents = sqlx::query_as!(
         ListAgentsElement,
         "SELECT id, name, is_connected, last_seen FROM agents"
     )
     .fetch_all(&state.db)
     .await
-    .unwrap();
+    .map_err(|err| {
+        error!(error = ?err, "failed to get agents from database");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
-    Json(agents)
+    Ok(Json(agents))
 }
 
 /// ==================== DELETE /agents/{id} ====================
@@ -38,10 +44,15 @@ pub(crate) async fn delete_agent(
     State(state): State<Arc<SharedState>>,
     Path(id): Path<i64>,
 ) -> StatusCode {
-    sqlx::query!("DELETE FROM agents WHERE id = ?", id)
+    let res = sqlx::query!("DELETE FROM agents WHERE id = ?", id)
         .execute(&state.db)
-        .await
-        .unwrap();
+        .await;
 
-    StatusCode::OK
+    match res {
+        Ok(_) => StatusCode::OK,
+        Err(err) => {
+            error!(error = ?err, "failed to delete agent from database");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    }
 }
