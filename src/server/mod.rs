@@ -8,11 +8,9 @@ use clap::Args;
 use sqlx::{Pool, Postgres};
 use tracing::{Level, error, info};
 
-mod agents;
-mod app;
+mod api;
 
-use agents::handlers::*;
-use app::handlers::*;
+use api::*;
 
 #[derive(Debug, Args)]
 pub struct Parameters {
@@ -58,19 +56,23 @@ pub async fn start(params: Parameters) -> ExitCode {
     let state = Arc::new(SharedState { db });
     let app = Router::new()
         .nest(
-            "/agents",
+            "/api/v1",
             Router::new()
-                .route("/", get(list_agents))
-                .route("/{id}", delete(delete_agent)),
-        )
-        .nest(
-            "/apps",
-            Router::new()
-                .route("/", get(list_apps))
-                .route("/create", post(create_app))
-                .route("/{id}", get(get_app))
-                .route("/{id}", put(update_app))
-                .route("/{id}", delete(delete_app)),
+                .nest(
+                    "/agents",
+                    Router::new()
+                        .route("/", get(agents::list_agents))
+                        .route("/{id}", delete(agents::delete_agent)),
+                )
+                .nest(
+                    "/apps",
+                    Router::new()
+                        .route("/", get(apps::list_apps))
+                        .route("/create", post(apps::create_app))
+                        .route("/{id}", get(apps::get_app))
+                        .route("/{id}", put(apps::update_app))
+                        .route("/{id}", delete(apps::delete_app)),
+                ),
         )
         .route("/healthcheck", get(|| async { "OK" }))
         .with_state(state);
