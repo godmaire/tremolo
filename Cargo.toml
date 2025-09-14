@@ -8,7 +8,7 @@ axum = "0.8.4"
 chrono = { version = "0.4.42", features = ["serde"] }
 clap = { version = "4.5.47", features = ["derive", "env"] }
 serde = { version = "1.0.219", features = ["derive"] }
-sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio", "macros", "uuid", "chrono"] }
+sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio", "tls-rustls-aws-lc-rs", "macros", "uuid", "chrono"] }
 tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"

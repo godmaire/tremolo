@@ -25,17 +25,17 @@
         { pkgs, ... }:
         pkgs.mkShell {
           PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
-          DATABASE_URL = "sqlite://dev.db";
-          TREMOLO_DATABASE_URL = "sqlite://dev.db";
+          DATABASE_URL = "postgres://postgres:password@localhost:5432/tremolo-db";
+          TREMOLO_DATABASE_URL = "postgres://postgres:password@localhost:5432/tremolo-db";
 
           packages = with pkgs; [
             clang
             git
             openssl
             pkg-config
-            sqlite-interactive
 
             just
+            postgresql_17
             sqlx-cli
           ];
         }

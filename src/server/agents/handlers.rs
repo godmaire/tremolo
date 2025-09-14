@@ -8,13 +8,14 @@ use axum::{
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use tracing::error;
+use uuid::Uuid;
 
 use crate::server::SharedState;
 
 /// ==================== GET /agents ====================
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ListAgentsElement {
-    pub id: i64,
+    pub id: Uuid,
     pub name: String,
     pub is_connected: bool,
     pub last_seen: NaiveDateTime,
@@ -42,9 +43,9 @@ pub(crate) async fn list_agents(
 /// ==================== DELETE /agents/{id} ====================
 pub(crate) async fn delete_agent(
     State(state): State<Arc<SharedState>>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
 ) -> StatusCode {
-    let res = sqlx::query!("DELETE FROM agents WHERE id = ?", id)
+    let res = sqlx::query!("DELETE FROM agents WHERE id = $1", id)
         .execute(&state.db)
         .await;
 

@@ -1,14 +1,11 @@
-use std::{net::SocketAddr, process::ExitCode, str::FromStr, sync::Arc};
+use std::{net::SocketAddr, process::ExitCode, sync::Arc};
 
 use axum::{
     Router,
     routing::{delete, get, post, put},
 };
 use clap::Args;
-use sqlx::{
-    Pool, Sqlite,
-    sqlite::{SqliteConnectOptions, SqliteJournalMode},
-};
+use sqlx::{Pool, Postgres};
 use tracing::{Level, error, info};
 
 mod agents;
@@ -26,17 +23,13 @@ pub struct Parameters {
     #[arg(long, default_value_t = Level::INFO, env = "TREMOLO_LOG_LEVEL")]
     log_level: Level,
     /// Path to the Sqlite database
-    #[arg(
-        long,
-        default_value = "/opt/tremolo/tremolo.db",
-        env = "TREMOLO_DATABASE_URL"
-    )]
+    #[arg(long, env = "TREMOLO_DATABASE_URL")]
     database_url: String,
 }
 
 #[derive(Clone)]
 struct SharedState {
-    db: Pool<Sqlite>,
+    db: Pool<Postgres>,
 }
 
 pub async fn start(params: Parameters) -> ExitCode {
@@ -49,11 +42,7 @@ pub async fn start(params: Parameters) -> ExitCode {
     tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     // Setup database connection
-    let opts = SqliteConnectOptions::from_str(&params.database_url)
-        .expect("valid sqlite url")
-        .journal_mode(SqliteJournalMode::Wal)
-        .create_if_missing(true);
-    let db = sqlx::SqlitePool::connect_with(opts)
+    let db = sqlx::PgPool::connect(&params.database_url)
         .await
         .expect("failed to open database");
 

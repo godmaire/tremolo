@@ -7,13 +7,14 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
+use uuid::Uuid;
 
 use crate::server::SharedState;
 
 /// ==================== GET /apps ====================
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ListAppsElement {
-    pub id: i64,
+    pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
 }
@@ -43,7 +44,7 @@ pub struct CreateAppRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct CreateAppResponse {
-    pub id: i64,
+    pub id: Uuid,
 }
 
 pub(crate) async fn create_app(
@@ -51,7 +52,7 @@ pub(crate) async fn create_app(
     Json(body): Json<CreateAppRequest>,
 ) -> Result<Json<CreateAppResponse>, StatusCode> {
     let res = sqlx::query!(
-        "INSERT INTO apps (name, description) VALUES (?, ?) RETURNING id",
+        "INSERT INTO apps (name, description) VALUES ($1, $2) RETURNING id",
         body.name,
         body.description
     )
@@ -72,18 +73,18 @@ pub(crate) async fn create_app(
 /// ==================== GET /apps/{id} ====================
 #[derive(Debug, Deserialize, Serialize)]
 pub struct GetAppResponse {
-    pub id: i64,
+    pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
 }
 
 pub(crate) async fn get_app(
     State(state): State<Arc<SharedState>>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<GetAppResponse>, StatusCode> {
     let app = sqlx::query_as!(
         GetAppResponse,
-        "SELECT id, name, description FROM apps WHERE id = ? LIMIT 1",
+        "SELECT id, name, description FROM apps WHERE id = $1 LIMIT 1",
         id
     )
     .fetch_optional(&state.db)
@@ -108,14 +109,14 @@ pub struct PutAppRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PutAppResponse {
-    pub id: i64,
+    pub id: Uuid,
     pub name: String,
     pub description: Option<String>,
 }
 
 pub(crate) async fn update_app(
     State(state): State<Arc<SharedState>>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
     Json(body): Json<PutAppRequest>,
 ) -> Result<Json<PutAppResponse>, StatusCode> {
     let app = sqlx::query_as!(
@@ -142,9 +143,9 @@ pub(crate) async fn update_app(
 /// ==================== DELETE /apps/{id} ====================
 pub(crate) async fn delete_app(
     State(state): State<Arc<SharedState>>,
-    Path(id): Path<i64>,
+    Path(id): Path<Uuid>,
 ) -> StatusCode {
-    let res = sqlx::query!("DELETE FROM apps WHERE id = ?", id)
+    let res = sqlx::query!("DELETE FROM apps WHERE id = $1", id)
         .execute(&state.db)
         .await;
 
