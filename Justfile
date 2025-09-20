@@ -9,6 +9,7 @@ start-db:
 
     sleep 0.5
     sqlx migrate run --source src/server/migrations
+    psql $DATABASE_URL -f src/server/fake-data.sql
 
 stop-db:
     podman stop tremolo-db || echo "Postgres is not running"

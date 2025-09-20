@@ -34,6 +34,7 @@
             openssl
             pkg-config
 
+            bun
             just
             postgresql_17
             sqlx-cli
