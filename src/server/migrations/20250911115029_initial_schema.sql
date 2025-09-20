@@ -5,6 +5,11 @@ CREATE TABLE agents (
        last_seen    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE agents_tokens (
+       token     TEXT      PRIMARY KEY DEFAULT (substr(md5(random()::text), 1, 32)),
+       Last_used TIMESTAMP
+);
+
 CREATE TABLE apps (
        id          UUID PRIMARY KEY DEFAULT (uuidv7()),
        name        TEXT NOT NULL UNIQUE,

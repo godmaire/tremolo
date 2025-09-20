@@ -2,12 +2,13 @@ use std::{net::SocketAddr, process::ExitCode, sync::Arc};
 
 use axum::{
     Router,
-    routing::{delete, get, post, put},
+    routing::{any, delete, get, post, put},
 };
 use clap::Args;
 use sqlx::{Pool, Postgres};
 use tracing::{Level, error, info};
 
+mod agent;
 mod api;
 
 use api::*;
@@ -75,6 +76,10 @@ pub async fn start(params: Parameters) -> ExitCode {
                 ),
         )
         .route("/healthcheck", get(|| async { "OK" }))
+        .nest(
+            "/ws",
+            Router::new().route("/agent", any(agent::connect_agent)),
+        )
         .with_state(state);
 
     // Start the application
