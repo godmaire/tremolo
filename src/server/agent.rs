@@ -8,10 +8,13 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
 };
-use futures_util::stream::{SplitSink, SplitStream, StreamExt};
+use futures_util::{
+    SinkExt,
+    stream::{SplitSink, SplitStream, StreamExt},
+};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{self, Receiver};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::server::SharedState;
 
@@ -122,8 +125,16 @@ pub(crate) async fn connect_agent(
     }))
 }
 
-async fn handle_sender(_sender: SplitSink<WebSocket, Message>, _rx: Receiver<Command>) {
-    todo!()
+// Forward messages from the receiver to the agent
+async fn handle_sender(mut sender: SplitSink<WebSocket, Message>, mut rx: Receiver<Command>) {
+    while let Some(msg) = rx.recv().await {
+        match sender.send(msg.into()).await {
+            Ok(_) => {}
+            Err(err) => {
+                error!(error = ?err, "failed to send message to agent")
+            }
+        }
+    }
 }
 
 async fn handle_receiver(_receiver: SplitStream<WebSocket>) {
