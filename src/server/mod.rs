@@ -1,4 +1,4 @@
-use std::{net::SocketAddr, process::ExitCode, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, process::ExitCode, sync::Arc};
 
 use axum::{
     Router,
@@ -6,6 +6,7 @@ use axum::{
 };
 use clap::Args;
 use sqlx::{Pool, Postgres};
+use tokio::sync::{RwLock, mpsc::Sender};
 use tracing::{Level, error, info};
 
 mod agent;
@@ -26,9 +27,9 @@ pub struct Parameters {
     database_url: String,
 }
 
-#[derive(Clone)]
 struct SharedState {
     db: Pool<Postgres>,
+    agents: RwLock<HashMap<String, Sender<agent::Command>>>,
 }
 
 pub async fn start(params: Parameters) -> ExitCode {
@@ -54,7 +55,11 @@ pub async fn start(params: Parameters) -> ExitCode {
     info!("Successfully  ran database migrations.");
 
     // Initialize Router
-    let state = Arc::new(SharedState { db });
+    let state = Arc::new(SharedState {
+        db,
+        agents: RwLock::new(HashMap::new()),
+    });
+
     let app = Router::new()
         .nest(
             "/api/v1",

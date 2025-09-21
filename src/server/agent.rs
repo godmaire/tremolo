@@ -10,6 +10,7 @@ use axum::{
 };
 use futures_util::stream::{SplitSink, SplitStream, StreamExt};
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc::{self, Receiver};
 use tracing::info;
 
 use crate::server::SharedState;
@@ -18,20 +19,18 @@ static TREMOLO_AUTH_HEADER_KEY: &str = "X-Tremolo-Auth";
 static TREMOLO_AGENT_NAME_HEADER_KEY: &str = "X-Tremolo-Agent-Name";
 
 #[derive(Debug, Serialize, Deserialize)]
-enum AgentMsg {
-    Ack,
-
+pub(crate) enum Response {
     Invalid,
 }
 
-impl From<AgentMsg> for ws::Message {
-    fn from(value: AgentMsg) -> Self {
+impl From<Response> for ws::Message {
+    fn from(value: Response) -> Self {
         let msg = serde_json::to_string(&value).expect("failed to serialize AgentMsg");
         ws::Message::text(msg)
     }
 }
 
-impl From<ws::Message> for AgentMsg {
+impl From<ws::Message> for Response {
     fn from(value: ws::Message) -> Self {
         let msg = match value.into_text() {
             Ok(msg) => msg.to_string(),
@@ -43,20 +42,18 @@ impl From<ws::Message> for AgentMsg {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-enum ServerMsg {
-    Ack,
-
+pub(crate) enum Command {
     Invalid,
 }
 
-impl From<ServerMsg> for ws::Message {
-    fn from(value: ServerMsg) -> Self {
+impl From<Command> for ws::Message {
+    fn from(value: Command) -> Self {
         let msg = serde_json::to_string(&value).expect("failed to serialize ServerMsg");
         ws::Message::text(msg)
     }
 }
 
-impl From<ws::Message> for ServerMsg {
+impl From<ws::Message> for Command {
     fn from(value: ws::Message) -> Self {
         let msg = match value.into_text() {
             Ok(msg) => msg.to_string(),
@@ -111,21 +108,21 @@ pub(crate) async fn connect_agent(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Upgrade the websocket!!
+    // Websocket!!!
     let state = state.clone();
-    Ok(ws.on_upgrade(|socket| handle_socket(socket, state, agent_name)))
+    Ok(ws.on_upgrade(async move |socket| {
+        info!(name = agent_name, "Connected to agent.");
+
+        let (tx, rx) = mpsc::channel::<Command>(8);
+        state.agents.blocking_write().insert(agent_name.clone(), tx);
+
+        let (sender, receiver) = socket.split();
+        tokio::spawn(handle_sender(sender, rx));
+        tokio::spawn(handle_receiver(receiver));
+    }))
 }
 
-async fn handle_socket(socket: WebSocket, _state: Arc<SharedState>, agent_name: String) {
-    info!(name = agent_name, "Connected to agent.");
-
-    let (sender, receiver) = socket.split();
-
-    tokio::spawn(handle_sender(sender));
-    tokio::spawn(handle_receiver(receiver));
-}
-
-async fn handle_sender(_sender: SplitSink<WebSocket, Message>) {
+async fn handle_sender(_sender: SplitSink<WebSocket, Message>, _rx: Receiver<Command>) {
     todo!()
 }
 
