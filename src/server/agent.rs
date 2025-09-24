@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use axum::{
     extract::{
         State, WebSocketUpgrade,
-        ws::{self, Message, WebSocket},
+        ws::{Message, WebSocket},
     },
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
@@ -26,15 +26,15 @@ pub(crate) enum Response {
     Invalid,
 }
 
-impl From<Response> for ws::Message {
+impl From<Response> for Message {
     fn from(value: Response) -> Self {
         let msg = serde_json::to_string(&value).expect("failed to serialize AgentMsg");
-        ws::Message::text(msg)
+        Message::text(msg)
     }
 }
 
-impl From<ws::Message> for Response {
-    fn from(value: ws::Message) -> Self {
+impl From<Message> for Response {
+    fn from(value: Message) -> Self {
         let msg = match value.into_text() {
             Ok(msg) => msg.to_string(),
             Err(_) => return Self::Invalid,
@@ -49,15 +49,15 @@ pub(crate) enum Command {
     Invalid,
 }
 
-impl From<Command> for ws::Message {
+impl From<Command> for Message {
     fn from(value: Command) -> Self {
         let msg = serde_json::to_string(&value).expect("failed to serialize ServerMsg");
-        ws::Message::text(msg)
+        Message::text(msg)
     }
 }
 
-impl From<ws::Message> for Command {
-    fn from(value: ws::Message) -> Self {
+impl From<Message> for Command {
+    fn from(value: Message) -> Self {
         let msg = match value.into_text() {
             Ok(msg) => msg.to_string(),
             Err(_) => return Self::Invalid,
@@ -124,7 +124,7 @@ pub(super) async fn connect_agent(
 
         let (sender, receiver) = socket.split();
         tokio::spawn(handle_sender(sender, rx));
-        tokio::spawn(handle_receiver(receiver));
+        tokio::spawn(handle_receiver(receiver, state, agent_name));
     }))
 }
 
@@ -140,6 +140,48 @@ async fn handle_sender(mut sender: SplitSink<WebSocket, Message>, mut rx: Receiv
     }
 }
 
-async fn handle_receiver(_receiver: SplitStream<WebSocket>) {
-    todo!()
+// Handle messages received from the agent
+async fn handle_receiver(
+    mut receiver: SplitStream<WebSocket>,
+    state: Arc<SharedState>,
+    agent_name: String,
+) {
+    while let Some(msg) = receiver.next().await {
+        let msg: Response = match msg {
+            Ok(msg @ Message::Text(_)) => msg.into(),
+
+            Ok(Message::Close(_)) => {
+                let res = sqlx::query!(
+                    "UPDATE agents SET is_connected = FALSE, last_seen = CURRENT_TIMESTAMP WHERE name = $1",
+                    agent_name
+                ).execute(&state.db)
+                .await;
+
+                if let Err(err) = res {
+                    error!(error = ?err, "failed to update agent in database");
+                }
+
+                break;
+            }
+
+            // NOOPs
+            Ok(Message::Ping(_)) | Ok(Message::Pong(_)) => continue,
+            Ok(Message::Binary(_)) => {
+                error!("binary format unsupported");
+                continue;
+            }
+
+            // Error :(
+            Err(err) => {
+                error!(error = ?err, "failed to get message from agent");
+                continue;
+            }
+        };
+
+        match msg {
+            Response::Invalid => todo!(),
+        }
+    }
+
+    info!("Agent disconnected!!!");
 }

@@ -44,7 +44,7 @@ pub async fn start(params: Parameters) -> ExitCode {
     );
 
     // Connect to the websocket
-    let (_socket, _res) = match tokio_tungstenite::connect_async(req).await {
+    let (mut socket, _res) = match tokio_tungstenite::connect_async(req).await {
         Ok((socket, res)) => (socket, res),
         Err(err) => {
             error!(error = ?err, "failed to connect to orchestrator");
@@ -53,6 +53,9 @@ pub async fn start(params: Parameters) -> ExitCode {
     };
 
     info!("Connected to orchestrator!");
+
+    // Disconnect cleanly
+    socket.close(None).await.unwrap();
 
     ExitCode::SUCCESS
 }
