@@ -1,0 +1,20 @@
+---
+source: src/service.rs
+expression: res
+---
+Definition {
+    services: {
+        "fake": Service {
+            image: "fake:latest",
+            port: 8080,
+            env: {},
+            labels: [],
+        },
+        "test": Service {
+            image: "nginx:latest",
+            port: 8080,
+            env: {},
+            labels: [],
+        },
+    },
+}

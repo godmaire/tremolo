@@ -4,6 +4,7 @@ use clap::{Parser, Subcommand};
 
 mod agent;
 mod server;
+mod service;
 
 #[derive(Debug, Parser)]
 struct Cli {

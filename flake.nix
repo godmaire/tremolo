@@ -35,6 +35,7 @@
             pkg-config
 
             bun
+            cargo-insta
             just
             postgresql_17
             sqlx-cli
