@@ -9,7 +9,7 @@ use sqlx::{Pool, Postgres};
 use tokio::sync::{RwLock, mpsc::Sender};
 use tracing::{Level, error, info};
 
-mod agent;
+pub mod agent;
 mod api;
 
 use api::*;

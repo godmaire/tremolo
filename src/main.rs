@@ -24,7 +24,7 @@ async fn main() -> ExitCode {
     let args = Cli::parse();
 
     match args.command {
-        Command::Agent(params) => agent::start(params),
+        Command::Agent(params) => agent::start(params).await,
         Command::Server(params) => server::start(params).await,
     }
 }

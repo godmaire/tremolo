@@ -18,8 +18,8 @@ use tracing::{error, info};
 
 use crate::server::SharedState;
 
-static TREMOLO_AUTH_HEADER_KEY: &str = "X-Tremolo-Auth";
-static TREMOLO_AGENT_NAME_HEADER_KEY: &str = "X-Tremolo-Agent-Name";
+pub static TREMOLO_AUTH_HEADER_KEY: &str = "X-Tremolo-Auth";
+pub static TREMOLO_AGENT_NAME_HEADER_KEY: &str = "X-Tremolo-Agent-Name";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum Response {
@@ -68,7 +68,7 @@ impl From<ws::Message> for Command {
 }
 
 /// ==================== WS /ws/agent ====================
-pub(crate) async fn connect_agent(
+pub(super) async fn connect_agent(
     ws: WebSocketUpgrade,
     headers: HeaderMap,
     State(state): State<Arc<SharedState>>,
@@ -106,10 +106,13 @@ pub(crate) async fn connect_agent(
     }
 
     // Create the agent in the database
-    sqlx::query!("INSERT INTO agents (name) VALUES ($1)", agent_name)
-        .execute(&state.db)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    sqlx::query!(
+        "INSERT INTO agents (name) VALUES ($1) ON CONFLICT DO NOTHING",
+        agent_name
+    )
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     // Websocket!!!
     let state = state.clone();
@@ -117,7 +120,7 @@ pub(crate) async fn connect_agent(
         info!(name = agent_name, "Connected to agent.");
 
         let (tx, rx) = mpsc::channel::<Command>(8);
-        state.agents.blocking_write().insert(agent_name.clone(), tx);
+        state.agents.write().await.insert(agent_name.clone(), tx);
 
         let (sender, receiver) = socket.split();
         tokio::spawn(handle_sender(sender, rx));
